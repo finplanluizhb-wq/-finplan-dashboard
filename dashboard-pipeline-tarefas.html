@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline & Tarefas - Finplan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        twenty: {
+                            bg: '#1c1c1c',
+                            card: '#252525',
+                            border: '#333333',
+                            text: '#b3b3b3',
+                            textLight: '#8c8c8c',
+                            white: '#ffffff',
+                            primary: '#5e5ce6',
+                            green: '#34c759',
+                            yellow: '#ffd60a',
+                            red: '#ff453a',
+                            orange: '#ff9f0a',
+                            blue: '#0a84ff',
+                            purple: '#bf5af2',
+                            pink: '#ff375f'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background: #1c1c1c; }
+        .card { background: #252525; border: 1px solid #333333; border-radius: 8px; }
+        .card:hover { border-color: #444444; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #252525; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        .loader { border: 2px solid #333; border-top: 2px solid #5e5ce6; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .stage-badge { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stage-new { background: rgba(10, 132, 255, 0.15); color: #0a84ff; }
+        .stage-screening { background: rgba(191, 90, 242, 0.15); color: #bf5af2; }
+        .stage-meeting { background: rgba(255, 214, 10, 0.15); color: #ffd60a; }
+        .stage-proposal { background: rgba(255, 159, 10, 0.15); color: #ff9f0a; }
+        .stage-customer { background: rgba(52, 199, 89, 0.15); color: #34c759; }
+        .status-todo { background: rgba(255, 214, 10, 0.15); color: #ffd60a; }
+        .status-in_progress { background: rgba(10, 132, 255, 0.15); color: #0a84ff; }
+        .status-done { background: rgba(52, 199, 89, 0.15); color: #34c759; }
+        .task-overdue { border-left: 3px solid #ff453a; }
+        .task-today { border-left: 3px solid #ff9f0a; }
+        .task-future { border-left: 3px solid #34c759; }
+    </style>
+</head>
+<body class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-twenty-primary/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-twenty-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-twenty-white">Pipeline & Tarefas</h1>
+                    <p class="text-xs text-twenty-textLight">Oportunidades e atividades pendentes</p>
+                </div>
+            </div>
+            <button onclick="carregarDados()" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-twenty-card border border-twenty-border hover:border-twenty-primary/50 text-twenty-text text-sm transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Atualizar
+            </button>
+        </div>
+
+        <!-- Cards KPI Pipeline -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <!-- NEW -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-twenty-blue"></div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">New</span>
+                </div>
+                <p class="text-xl font-semibold text-twenty-white" id="stageNew">-</p>
+                <p class="text-xs text-twenty-textLight mt-1" id="stageNewCount">0 oportunidades</p>
+            </div>
+
+            <!-- SCREENING -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-twenty-purple"></div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Screening</span>
+                </div>
+                <p class="text-xl font-semibold text-twenty-white" id="stageScreening">-</p>
+                <p class="text-xs text-twenty-textLight mt-1" id="stageScreeningCount">0 oportunidades</p>
+            </div>
+
+            <!-- MEETING -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-twenty-yellow"></div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Meeting</span>
+                </div>
+                <p class="text-xl font-semibold text-twenty-white" id="stageMeeting">-</p>
+                <p class="text-xs text-twenty-textLight mt-1" id="stageMeetingCount">0 oportunidades</p>
+            </div>
+
+            <!-- PROPOSAL -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-twenty-orange"></div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Proposal</span>
+                </div>
+                <p class="text-xl font-semibold text-twenty-white" id="stageProposal">-</p>
+                <p class="text-xs text-twenty-textLight mt-1" id="stageProposalCount">0 oportunidades</p>
+            </div>
+
+            <!-- CUSTOMER -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-twenty-green"></div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Customer</span>
+                </div>
+                <p class="text-xl font-semibold text-twenty-white" id="stageCustomer">-</p>
+                <p class="text-xs text-twenty-textLight mt-1" id="stageCustomerCount">0 oportunidades</p>
+            </div>
+        </div>
+
+        <!-- Total Pipeline -->
+        <div class="card p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-twenty-green/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-twenty-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs text-twenty-textLight uppercase tracking-wide">Pipeline Total</p>
+                        <p class="text-2xl font-semibold text-twenty-green" id="pipelineTotal">-</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-twenty-textLight">Taxa de Conversão</p>
+                    <p class="text-lg font-semibold text-twenty-primary" id="taxaConversao">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <!-- Pipeline por Estágio -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-textLight" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Pipeline por Estágio</span>
+                </div>
+                <canvas id="graficoPipeline" height="200"></canvas>
+            </div>
+
+            <!-- Tarefas por Status -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-textLight" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Tarefas por Status</span>
+                </div>
+                <canvas id="graficoTarefas" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Resumo Tarefas -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- Atrasadas -->
+            <div class="card p-4 border-twenty-red/30">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-4 h-4 text-twenty-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-red">Atrasadas</span>
+                </div>
+                <p class="text-3xl font-semibold text-twenty-red" id="tarefasAtrasadas">-</p>
+            </div>
+
+            <!-- Em Andamento -->
+            <div class="card p-4 border-twenty-blue/30">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-4 h-4 text-twenty-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-blue">Em Andamento</span>
+                </div>
+                <p class="text-3xl font-semibold text-twenty-blue" id="tarefasAndamento">-</p>
+            </div>
+
+            <!-- Concluídas -->
+            <div class="card p-4 border-twenty-green/30">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-4 h-4 text-twenty-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-green">Concluídas</span>
+                </div>
+                <p class="text-3xl font-semibold text-twenty-green" id="tarefasConcluidas">-</p>
+            </div>
+        </div>
+
+        <!-- Listas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Oportunidades -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Oportunidades Ativas</span>
+                </div>
+                <div class="space-y-2 max-h-80 overflow-y-auto" id="listaOportunidades"></div>
+            </div>
+
+            <!-- Tarefas Pendentes -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Tarefas Pendentes</span>
+                </div>
+                <div class="space-y-2 max-h-80 overflow-y-auto" id="listaTarefas"></div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="fixed inset-0 bg-twenty-bg/90 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="loader mx-auto mb-3"></div>
+                <p class="text-sm text-twenty-textLight">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://crm-finplan.gestaomentor.com.br/rest';
+        const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMzliODk1YS0wYjY5LTQwODQtOTdkOC0xNjZjZjM3ODUyZGUiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiZTM5Yjg5NWEtMGI2OS00MDg0LTk3ZDgtMTY2Y2YzNzg1MmRlIiwiaWF0IjoxNzcyNzM3ODczLCJleHAiOjQ5MjYzMzc4OTgsImp0aSI6IjBhOWIyOWI4LTU3NDgtNDAzYy1hMDU1LTJkOTNhNGQ1MzA4MiJ9.zc0j_BXAEa0eNVPUbtJrfX5uoFD2bNNadKVj6XPK48Q';
+
+        let graficoPipeline = null;
+        let graficoTarefas = null;
+
+        Chart.defaults.color = '#8c8c8c';
+        Chart.defaults.borderColor = '#333333';
+
+        async function fetchAPI(endpoint) {
+            const response = await fetch(`${API_URL}/${endpoint}`, {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            return response.json();
+        }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(data).toLocaleDateString('pt-BR');
+        }
+
+        function getStageClass(stage) {
+            const s = (stage || '').toLowerCase();
+            if (s === 'new') return 'stage-new';
+            if (s === 'screening') return 'stage-screening';
+            if (s === 'meeting') return 'stage-meeting';
+            if (s === 'proposal') return 'stage-proposal';
+            if (s === 'customer') return 'stage-customer';
+            return 'stage-new';
+        }
+
+        function getTaskClass(dueAt, status) {
+            if (status === 'DONE') return '';
+            if (!dueAt) return 'task-future';
+            const due = new Date(dueAt);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            due.setHours(0,0,0,0);
+            if (due < today) return 'task-overdue';
+            if (due.getTime() === today.getTime()) return 'task-today';
+            return 'task-future';
+        }
+
+        async function carregarDados() {
+            document.getElementById('loading').classList.remove('hidden');
+            
+            try {
+                const [oportunidades, tarefas] = await Promise.all([
+                    fetchAPI('opportunities?limit=100'),
+                    fetchAPI('tasks?limit=100')
+                ]);
+
+                const opps = oportunidades.data?.opportunities || [];
+                const tasks = tarefas.data?.tasks || [];
+
+                // Pipeline por estágio
+                const stages = { NEW: 0, SCREENING: 0, MEETING: 0, PROPOSAL: 0, CUSTOMER: 0 };
+                const stageCount = { NEW: 0, SCREENING: 0, MEETING: 0, PROPOSAL: 0, CUSTOMER: 0 };
+                let pipelineTotal = 0;
+
+                opps.forEach(o => {
+                    const valor = (o.amount?.amountMicros || 0) / 1000000;
+                    const stage = o.stage || 'NEW';
+                    if (stages.hasOwnProperty(stage)) {
+                        stages[stage] += valor;
+                        stageCount[stage]++;
+                    }
+                    pipelineTotal += valor;
+                });
+
+                // Atualizar cards pipeline
+                document.getElementById('stageNew').textContent = formatarMoeda(stages.NEW);
+                document.getElementById('stageNewCount').textContent = `${stageCount.NEW} oportunidades`;
+                document.getElementById('stageScreening').textContent = formatarMoeda(stages.SCREENING);
+                document.getElementById('stageScreeningCount').textContent = `${stageCount.SCREENING} oportunidades`;
+                document.getElementById('stageMeeting').textContent = formatarMoeda(stages.MEETING);
+                document.getElementById('stageMeetingCount').textContent = `${stageCount.MEETING} oportunidades`;
+                document.getElementById('stageProposal').textContent = formatarMoeda(stages.PROPOSAL);
+                document.getElementById('stageProposalCount').textContent = `${stageCount.PROPOSAL} oportunidades`;
+                document.getElementById('stageCustomer').textContent = formatarMoeda(stages.CUSTOMER);
+                document.getElementById('stageCustomerCount').textContent = `${stageCount.CUSTOMER} oportunidades`;
+
+                document.getElementById('pipelineTotal').textContent = formatarMoeda(pipelineTotal);
+                
+                const totalOpps = opps.length;
+                const conversao = totalOpps > 0 ? ((stageCount.CUSTOMER / totalOpps) * 100).toFixed(0) : 0;
+                document.getElementById('taxaConversao').textContent = `${conversao}%`;
+
+                // Tarefas
+                let todo = 0, inProgress = 0, done = 0, atrasadas = 0;
+                const today = new Date();
+                today.setHours(0,0,0,0);
+
+                tasks.forEach(t => {
+                    const status = t.status || 'TODO';
+                    if (status === 'DONE') done++;
+                    else if (status === 'IN_PROGRESS') inProgress++;
+                    else {
+                        todo++;
+                        if (t.dueAt) {
+                            const due = new Date(t.dueAt);
+                            due.setHours(0,0,0,0);
+                            if (due < today) atrasadas++;
+                        }
+                    }
+                });
+
+                document.getElementById('tarefasAtrasadas').textContent = atrasadas;
+                document.getElementById('tarefasAndamento').textContent = inProgress;
+                document.getElementById('tarefasConcluidas').textContent = done;
+
+                // Gráfico Pipeline
+                const ctxPipeline = document.getElementById('graficoPipeline').getContext('2d');
+                if (graficoPipeline) graficoPipeline.destroy();
+                graficoPipeline = new Chart(ctxPipeline, {
+                    type: 'bar',
+                    data: {
+                        labels: ['New', 'Screening', 'Meeting', 'Proposal', 'Customer'],
+                        datasets: [{
+                            data: [stages.NEW, stages.SCREENING, stages.MEETING, stages.PROPOSAL, stages.CUSTOMER],
+                            backgroundColor: ['#0a84ff', '#bf5af2', '#ffd60a', '#ff9f0a', '#34c759'],
+                            borderRadius: 4,
+                            barThickness: 30
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: '#333' } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // Gráfico Tarefas
+                const ctxTarefas = document.getElementById('graficoTarefas').getContext('2d');
+                if (graficoTarefas) graficoTarefas.destroy();
+                graficoTarefas = new Chart(ctxTarefas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['A Fazer', 'Em Andamento', 'Concluídas'],
+                        datasets: [{
+                            data: [todo, inProgress, done],
+                            backgroundColor: ['#ffd60a', '#0a84ff', '#34c759'],
+                            borderWidth: 0,
+                            spacing: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: '65%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { boxWidth: 12, padding: 12, font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+
+                // Lista Oportunidades
+                const oppsAtivas = opps.filter(o => o.stage !== 'CUSTOMER').sort((a, b) => {
+                    const va = (a.amount?.amountMicros || 0);
+                    const vb = (b.amount?.amountMicros || 0);
+                    return vb - va;
+                });
+
+                document.getElementById('listaOportunidades').innerHTML = oppsAtivas.length > 0 
+                    ? oppsAtivas.map(o => `
+                        <div class="p-3 rounded-lg bg-twenty-bg border border-twenty-border hover:border-twenty-primary/30 transition-colors">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm text-twenty-white font-medium">${o.name || 'Sem nome'}</span>
+                                <span class="stage-badge ${getStageClass(o.stage)}">${o.stage || 'NEW'}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-twenty-textLight">Fechamento: ${formatarData(o.closeDate)}</span>
+                                <span class="text-sm font-semibold text-twenty-green">${formatarMoeda((o.amount?.amountMicros || 0) / 1000000)}</span>
+                            </div>
+                        </div>
+                    `).join('')
+                    : '<p class="text-sm text-twenty-textLight text-center py-4">Nenhuma oportunidade ativa</p>';
+
+                // Lista Tarefas Pendentes
+                const tarefasPendentes = tasks.filter(t => t.status !== 'DONE').sort((a, b) => {
+                    if (!a.dueAt) return 1;
+                    if (!b.dueAt) return -1;
+                    return new Date(a.dueAt) - new Date(b.dueAt);
+                });
+
+                document.getElementById('listaTarefas').innerHTML = tarefasPendentes.length > 0
+                    ? tarefasPendentes.map(t => `
+                        <div class="p-3 rounded-lg bg-twenty-bg border border-twenty-border ${getTaskClass(t.dueAt, t.status)} hover:border-twenty-primary/30 transition-colors">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-sm text-twenty-white">${t.title?.replace(/[⚠️📅🔄✅]/g, '').trim() || 'Sem título'}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-twenty-textLight">${t.dueAt ? formatarData(t.dueAt) : 'Sem prazo'}</span>
+                                <span class="text-xs px-2 py-1 rounded ${t.status === 'IN_PROGRESS' ? 'status-in_progress' : 'status-todo'}">${t.status === 'IN_PROGRESS' ? 'Em andamento' : 'A fazer'}</span>
+                            </div>
+                        </div>
+                    `).join('')
+                    : '<p class="text-sm text-twenty-textLight text-center py-4">Nenhuma tarefa pendente</p>';
+
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        carregarDados();
+        setInterval(carregarDados, 300000);
+    </script>
+</body>
+</html>
