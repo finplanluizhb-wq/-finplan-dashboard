@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluxo de Caixa - Finplan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        twenty: {
+                            bg: '#1c1c1c',
+                            card: '#252525',
+                            border: '#333333',
+                            text: '#b3b3b3',
+                            textLight: '#8c8c8c',
+                            white: '#ffffff',
+                            primary: '#5e5ce6',
+                            green: '#34c759',
+                            yellow: '#ffd60a',
+                            red: '#ff453a',
+                            orange: '#ff9f0a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background: #1c1c1c; }
+        .card { background: #252525; border: 1px solid #333333; border-radius: 8px; }
+        .card:hover { border-color: #444444; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #252525; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        .loader { border: 2px solid #333; border-top: 2px solid #5e5ce6; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-recebido, .status-pago { background: rgba(52, 199, 89, 0.15); color: #34c759; }
+        .status-pendente { background: rgba(255, 214, 10, 0.15); color: #ffd60a; }
+        .status-atrasado { background: rgba(255, 69, 58, 0.15); color: #ff453a; }
+        table { border-collapse: separate; border-spacing: 0; }
+        th { color: #8c8c8c; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { color: #b3b3b3; }
+        tr:hover td { background: #2a2a2a; }
+    </style>
+</head>
+<body class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-twenty-primary/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-twenty-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-twenty-white">Fluxo de Caixa</h1>
+                    <p class="text-xs text-twenty-textLight">Atualizado em tempo real</p>
+                </div>
+            </div>
+            <button onclick="carregarDados()" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-twenty-card border border-twenty-border hover:border-twenty-primary/50 text-twenty-text text-sm transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Atualizar
+            </button>
+        </div>
+
+        <!-- Cards KPI -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <!-- A Receber -->
+            <div class="card p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-twenty-green/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-twenty-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8l-8 8-8-8"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">A Receber</span>
+                </div>
+                <p class="text-2xl font-semibold text-twenty-green" id="totalReceber">-</p>
+            </div>
+
+            <!-- A Pagar -->
+            <div class="card p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-twenty-red/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-twenty-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 20V4m-8 8l8-8 8 8"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">A Pagar</span>
+                </div>
+                <p class="text-2xl font-semibold text-twenty-red" id="totalPagar">-</p>
+            </div>
+
+            <!-- Saldo -->
+            <div class="card p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-twenty-primary/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-twenty-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Saldo Projetado</span>
+                </div>
+                <p class="text-2xl font-semibold text-twenty-primary" id="saldoProjetado">-</p>
+            </div>
+
+            <!-- Atrasadas -->
+            <div class="card p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-twenty-orange/10 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-twenty-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs text-twenty-textLight uppercase tracking-wide">Atrasadas</span>
+                </div>
+                <p class="text-2xl font-semibold text-twenty-orange" id="contasAtrasadas">-</p>
+            </div>
+        </div>
+
+        <!-- Alertas -->
+        <div id="alertas" class="mb-6 hidden">
+            <div class="card p-4 border-twenty-red/30">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-4 h-4 text-twenty-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-red">Contas Atrasadas</span>
+                </div>
+                <div id="listaAtrasadas" class="text-sm text-twenty-text space-y-1"></div>
+            </div>
+        </div>
+
+        <!-- Gráfico e Resumo -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <!-- Gráfico -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-textLight" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Visão Geral</span>
+                </div>
+                <canvas id="graficoFluxo" height="180"></canvas>
+            </div>
+
+            <!-- Resumo -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-textLight" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Resumo por Status</span>
+                </div>
+                <div id="resumoStatus" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Tabelas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Contas a Receber -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8l-8 8-8-8"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Contas a Receber</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-twenty-border">
+                                <th class="text-left py-3 px-2">Descrição</th>
+                                <th class="text-left py-3 px-2">Cliente</th>
+                                <th class="text-right py-3 px-2">Valor</th>
+                                <th class="text-center py-3 px-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaReceber"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Contas a Pagar -->
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-twenty-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 20V4m-8 8l8-8 8 8"/>
+                    </svg>
+                    <span class="text-sm font-medium text-twenty-text">Contas a Pagar</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-twenty-border">
+                                <th class="text-left py-3 px-2">Descrição</th>
+                                <th class="text-left py-3 px-2">Fornecedor</th>
+                                <th class="text-right py-3 px-2">Valor</th>
+                                <th class="text-center py-3 px-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaPagar"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="fixed inset-0 bg-twenty-bg/90 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="loader mx-auto mb-3"></div>
+                <p class="text-sm text-twenty-textLight">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://crm-finplan.gestaomentor.com.br/rest';
+        const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMzliODk1YS0wYjY5LTQwODQtOTdkOC0xNjZjZjM3ODUyZGUiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiZTM5Yjg5NWEtMGI2OS00MDg0LTk3ZDgtMTY2Y2YzNzg1MmRlIiwiaWF0IjoxNzcyNzM3ODczLCJleHAiOjQ5MjYzMzc4OTgsImp0aSI6IjBhOWIyOWI4LTU3NDgtNDAzYy1hMDU1LTJkOTNhNGQ1MzA4MiJ9.zc0j_BXAEa0eNVPUbtJrfX5uoFD2bNNadKVj6XPK48Q';
+
+        let graficoFluxo = null;
+
+        Chart.defaults.color = '#8c8c8c';
+        Chart.defaults.borderColor = '#333333';
+
+        async function fetchAPI(endpoint) {
+            const response = await fetch(`${API_URL}/${endpoint}`, {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            return response.json();
+        }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function getStatusClass(status) {
+            if (!status) return 'status-pendente';
+            const s = status.toLowerCase();
+            if (s.includes('pago')) return 'status-pago';
+            if (s.includes('recebido')) return 'status-recebido';
+            if (s.includes('atrasado')) return 'status-atrasado';
+            return 'status-pendente';
+        }
+
+        function getStatusLabel(status) {
+            if (!status) return 'Pendente';
+            return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+        }
+
+        async function carregarDados() {
+            document.getElementById('loading').classList.remove('hidden');
+            
+            try {
+                const [receber, pagar] = await Promise.all([
+                    fetchAPI('contasAReceber?limit=100'),
+                    fetchAPI('contasAPagar?limit=100')
+                ]);
+
+                const contasReceber = receber.data?.contasAReceber || [];
+                const contasPagar = pagar.data?.contasAPagar || [];
+
+                let totalReceber = 0, totalPagar = 0;
+                let receberPago = 0, receberPendente = 0, receberAtrasado = 0;
+                let pagarPago = 0, pagarPendente = 0, pagarAtrasado = 0;
+                let atrasadas = [];
+
+                contasReceber.forEach(c => {
+                    const valor = c.valor || 0;
+                    totalReceber += valor;
+                    const status = (c.statusRecebimento || '').toLowerCase();
+                    if (status.includes('recebido')) receberPago += valor;
+                    else if (status.includes('atrasado')) {
+                        receberAtrasado += valor;
+                        atrasadas.push({ tipo: 'Receber', nome: c.name, detalhe: c.cliente, valor });
+                    }
+                    else receberPendente += valor;
+                });
+
+                contasPagar.forEach(c => {
+                    const valor = c.valor || 0;
+                    totalPagar += valor;
+                    const status = (c.statusPagamento || '').toLowerCase();
+                    if (status.includes('pago')) pagarPago += valor;
+                    else if (status.includes('atrasado')) {
+                        pagarAtrasado += valor;
+                        atrasadas.push({ tipo: 'Pagar', nome: c.name, detalhe: c.fornecedor, valor });
+                    }
+                    else pagarPendente += valor;
+                });
+
+                // Cards
+                document.getElementById('totalReceber').textContent = formatarMoeda(totalReceber);
+                document.getElementById('totalPagar').textContent = formatarMoeda(totalPagar);
+                document.getElementById('saldoProjetado').textContent = formatarMoeda(totalReceber - totalPagar);
+                document.getElementById('contasAtrasadas').textContent = atrasadas.length;
+
+                // Alertas
+                if (atrasadas.length > 0) {
+                    document.getElementById('alertas').classList.remove('hidden');
+                    document.getElementById('listaAtrasadas').innerHTML = atrasadas.map(a => 
+                        `<div class="flex justify-between items-center py-1">
+                            <span>${a.nome?.replace('⚠️ ', '')}</span>
+                            <span class="text-twenty-red font-medium">${formatarMoeda(a.valor)}</span>
+                        </div>`
+                    ).join('');
+                } else {
+                    document.getElementById('alertas').classList.add('hidden');
+                }
+
+                // Resumo
+                document.getElementById('resumoStatus').innerHTML = `
+                    <div class="flex justify-between items-center p-3 rounded-lg bg-twenty-green/5 border border-twenty-green/20">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-twenty-green"></div>
+                            <span class="text-twenty-text text-sm">Recebido / Pago</span>
+                        </div>
+                        <span class="font-medium text-twenty-green">${formatarMoeda(receberPago + pagarPago)}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 rounded-lg bg-twenty-yellow/5 border border-twenty-yellow/20">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-twenty-yellow"></div>
+                            <span class="text-twenty-text text-sm">Pendente</span>
+                        </div>
+                        <span class="font-medium text-twenty-yellow">${formatarMoeda(receberPendente + pagarPendente)}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 rounded-lg bg-twenty-red/5 border border-twenty-red/20">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-twenty-red"></div>
+                            <span class="text-twenty-text text-sm">Atrasado</span>
+                        </div>
+                        <span class="font-medium text-twenty-red">${formatarMoeda(receberAtrasado + pagarAtrasado)}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 rounded-lg bg-twenty-primary/5 border border-twenty-primary/20 mt-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-twenty-primary"></div>
+                            <span class="text-twenty-text text-sm font-medium">Saldo Líquido</span>
+                        </div>
+                        <span class="font-semibold text-twenty-primary">${formatarMoeda(totalReceber - totalPagar)}</span>
+                    </div>
+                `;
+
+                // Gráfico
+                const ctx = document.getElementById('graficoFluxo').getContext('2d');
+                if (graficoFluxo) graficoFluxo.destroy();
+                graficoFluxo = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Recebido', 'A Receber', 'Atrasado (R)', 'Pago', 'A Pagar', 'Atrasado (P)'],
+                        datasets: [{
+                            data: [receberPago, receberPendente, receberAtrasado, pagarPago, pagarPendente, pagarAtrasado],
+                            backgroundColor: ['#34c759', '#ffd60a', '#ff453a', '#32d74b', '#ffcc00', '#ff3b30'],
+                            borderWidth: 0,
+                            spacing: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: '65%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 12,
+                                    font: { size: 11 }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Tabelas
+                document.getElementById('tabelaReceber').innerHTML = contasReceber.map(c => `
+                    <tr class="border-b border-twenty-border/50">
+                        <td class="py-3 px-2">${c.name?.replace('⚠️ ', '') || '-'}</td>
+                        <td class="py-3 px-2 text-twenty-textLight">${c.cliente || '-'}</td>
+                        <td class="py-3 px-2 text-right font-medium">${formatarMoeda(c.valor)}</td>
+                        <td class="py-3 px-2 text-center"><span class="status-badge ${getStatusClass(c.statusRecebimento)}">${getStatusLabel(c.statusRecebimento)}</span></td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('tabelaPagar').innerHTML = contasPagar.map(c => `
+                    <tr class="border-b border-twenty-border/50">
+                        <td class="py-3 px-2">${c.name?.replace('⚠️ ', '') || '-'}</td>
+                        <td class="py-3 px-2 text-twenty-textLight">${c.fornecedor || '-'}</td>
+                        <td class="py-3 px-2 text-right font-medium">${formatarMoeda(c.valor)}</td>
+                        <td class="py-3 px-2 text-center"><span class="status-badge ${getStatusClass(c.statusPagamento)}">${getStatusLabel(c.statusPagamento)}</span></td>
+                    </tr>
+                `).join('');
+
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        carregarDados();
+        setInterval(carregarDados, 300000);
+    </script>
+</body>
+</html>
