@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline de Oportunidades - Finplan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { bg: '#0a0a1a', card: '#12122a', border: '#1e1e3f', text: '#a0a0c0', light: '#6b6b8f' },
+                        neon: { pink: '#ff2d7a', purple: '#a855f7', cyan: '#22d3ee', blue: '#3b82f6', green: '#10b981', yellow: '#fbbf24', red: '#ef4444', orange: '#f97316' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: linear-gradient(135deg, #0a0a1a 0%, #12122a 100%); min-height: 100vh; }
+        .card { 
+            background: rgba(18, 18, 42, 0.8); 
+            border: 1px solid rgba(168, 85, 247, 0.2); 
+            border-radius: 16px; 
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.15), 0 0 50px rgba(168, 85, 247, 0.05);
+            transition: all 0.3s ease;
+        }
+        .card:hover { 
+            border-color: rgba(168, 85, 247, 0.4); 
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.25), 0 0 60px rgba(168, 85, 247, 0.1);
+            transform: translateY(-2px);
+        }
+        .stat-number { font-weight: 700; letter-spacing: -0.02em; }
+        .stage-new { background: linear-gradient(135deg, #3b82f6, #22d3ee); }
+        .stage-screening { background: linear-gradient(135deg, #a855f7, #ec4899); }
+        .stage-meeting { background: linear-gradient(135deg, #fbbf24, #f97316); }
+        .stage-proposal { background: linear-gradient(135deg, #f97316, #ff2d7a); }
+        .stage-customer { background: linear-gradient(135deg, #10b981, #22d3ee); }
+        .pipeline-card {
+            background: rgba(18, 18, 42, 0.6);
+            border: 1px solid rgba(168, 85, 247, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .pipeline-card:hover {
+            background: rgba(168, 85, 247, 0.1);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+        .funnel-bar {
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        .funnel-bar:hover { transform: scaleX(1.02); }
+        .progress-ring { transform: rotate(-90deg); }
+        .glow-text { text-shadow: 0 0 20px currentColor; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #12122a; }
+        ::-webkit-scrollbar-thumb { background: #a855f7; border-radius: 2px; }
+        .kanban-column { min-height: 300px; max-height: 400px; overflow-y: auto; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .filter-btn { transition: all 0.2s ease; }
+        .filter-btn.active { background: rgba(168, 85, 247, 0.3); border-color: rgba(168, 85, 247, 0.5); color: #a855f7; }
+        .task-alert { animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .rank-bar { height: 8px; border-radius: 4px; transition: width 0.5s ease; }
+        .forecast-card { background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(34, 211, 238, 0.1)); }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header com Filtros -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span class="text-2xl">🎯</span> Pipeline de Oportunidades
+                </h1>
+                <p class="text-dark-light text-xs">Gestão visual do funil de vendas</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <!-- Filtros de Período -->
+                <div class="flex gap-1 bg-dark-card rounded-xl p-1">
+                    <button onclick="setPeriodo('mes')" id="filtroMes" class="filter-btn px-3 py-1.5 rounded-lg text-xs text-dark-text hover:text-white active">Este Mês</button>
+                    <button onclick="setPeriodo('trimestre')" id="filtroTrimestre" class="filter-btn px-3 py-1.5 rounded-lg text-xs text-dark-text hover:text-white">Trimestre</button>
+                    <button onclick="setPeriodo('ano')" id="filtroAno" class="filter-btn px-3 py-1.5 rounded-lg text-xs text-dark-text hover:text-white">Ano</button>
+                    <button onclick="setPeriodo('todos')" id="filtroTodos" class="filter-btn px-3 py-1.5 rounded-lg text-xs text-dark-text hover:text-white">Todos</button>
+                </div>
+                <!-- Botões de Ação -->
+                <button onclick="toggleView('kanban')" id="btnKanban" class="px-4 py-2 rounded-xl bg-neon-purple/20 border border-neon-purple/30 text-neon-purple text-sm hover:bg-neon-purple/30 transition-all">
+                    ▦ Kanban
+                </button>
+                <button onclick="toggleView('funnel')" id="btnFunnel" class="px-4 py-2 rounded-xl bg-dark-card border border-dark-border text-dark-text text-sm hover:bg-neon-purple/10 transition-all">
+                    ▼ Funil
+                </button>
+                <button onclick="carregarDados()" class="px-4 py-2 rounded-xl bg-neon-cyan/20 border border-neon-cyan/30 text-neon-cyan text-sm hover:bg-neon-cyan/30 transition-all">
+                    ↻
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards Row -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-3 h-3 rounded-full stage-new"></span>
+                    <span class="text-dark-light text-xs uppercase tracking-wider">Novos</span>
+                </div>
+                <p class="stat-number text-2xl text-neon-blue" id="countNew">0</p>
+                <p class="text-dark-light text-xs mt-1" id="valueNew">R$ 0</p>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-3 h-3 rounded-full stage-screening"></span>
+                    <span class="text-dark-light text-xs uppercase tracking-wider">Triagem</span>
+                </div>
+                <p class="stat-number text-2xl text-neon-purple" id="countScreening">0</p>
+                <p class="text-dark-light text-xs mt-1" id="valueScreening">R$ 0</p>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-3 h-3 rounded-full stage-meeting"></span>
+                    <span class="text-dark-light text-xs uppercase tracking-wider">Reunião</span>
+                </div>
+                <p class="stat-number text-2xl text-neon-yellow" id="countMeeting">0</p>
+                <p class="text-dark-light text-xs mt-1" id="valueMeeting">R$ 0</p>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-3 h-3 rounded-full stage-proposal"></span>
+                    <span class="text-dark-light text-xs uppercase tracking-wider">Proposta</span>
+                </div>
+                <p class="stat-number text-2xl text-neon-orange" id="countProposal">0</p>
+                <p class="text-dark-light text-xs mt-1" id="valueProposal">R$ 0</p>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-3 h-3 rounded-full stage-customer"></span>
+                    <span class="text-dark-light text-xs uppercase tracking-wider">Fechados</span>
+                </div>
+                <p class="stat-number text-2xl text-neon-green" id="countCustomer">0</p>
+                <p class="text-dark-light text-xs mt-1" id="valueCustomer">R$ 0</p>
+            </div>
+        </div>
+
+        <!-- Big Numbers + Previsão -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="card p-5 text-center">
+                <p class="text-dark-light text-xs uppercase tracking-wider mb-2">Pipeline Total</p>
+                <p class="stat-number text-3xl text-white glow-text" id="pipelineTotal">R$ 0</p>
+                <p class="text-neon-cyan text-sm mt-2" id="totalOps">0 oportunidades</p>
+            </div>
+            <div class="card p-5 text-center">
+                <p class="text-dark-light text-xs uppercase tracking-wider mb-2">Valor Fechado</p>
+                <p class="stat-number text-3xl text-neon-green glow-text" id="valorFechado">R$ 0</p>
+                <p class="text-dark-light text-sm mt-2" id="taxaConversao">0% conversão</p>
+            </div>
+            <div class="card p-5 text-center">
+                <p class="text-dark-light text-xs uppercase tracking-wider mb-2">Ticket Médio</p>
+                <p class="stat-number text-3xl text-neon-purple glow-text" id="ticketMedio">R$ 0</p>
+                <p class="text-dark-light text-sm mt-2">por oportunidade</p>
+            </div>
+            <!-- Previsão de Receita -->
+            <div class="card p-5 text-center forecast-card">
+                <p class="text-dark-light text-xs uppercase tracking-wider mb-2">📈 Previsão Receita</p>
+                <p class="stat-number text-3xl text-neon-cyan glow-text" id="previsaoReceita">R$ 0</p>
+                <p class="text-neon-green text-sm mt-2" id="previsaoInfo">próximos 30 dias</p>
+            </div>
+        </div>
+
+        <!-- Alertas de Follow-up -->
+        <div id="alertasContainer" class="mb-6 hidden">
+            <div class="card p-4 border-neon-red/30">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-white text-sm font-medium flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-neon-red pulse"></span>
+                        🔔 Alertas de Follow-up
+                    </span>
+                    <span class="text-neon-red text-xs" id="alertasCount">0 pendências</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="alertasList"></div>
+            </div>
+        </div>
+
+        <!-- Kanban View -->
+        <div id="kanbanView" class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full stage-new"></span>
+                            <span class="text-white text-sm font-semibold">Novos</span>
+                        </div>
+                        <span class="text-neon-blue text-xs font-bold" id="kanbanNewCount">0</span>
+                    </div>
+                    <div id="kanbanNew" class="kanban-column space-y-2"></div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full stage-screening"></span>
+                            <span class="text-white text-sm font-semibold">Triagem</span>
+                        </div>
+                        <span class="text-neon-purple text-xs font-bold" id="kanbanScreeningCount">0</span>
+                    </div>
+                    <div id="kanbanScreening" class="kanban-column space-y-2"></div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full stage-meeting"></span>
+                            <span class="text-white text-sm font-semibold">Reunião</span>
+                        </div>
+                        <span class="text-neon-yellow text-xs font-bold" id="kanbanMeetingCount">0</span>
+                    </div>
+                    <div id="kanbanMeeting" class="kanban-column space-y-2"></div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full stage-proposal"></span>
+                            <span class="text-white text-sm font-semibold">Proposta</span>
+                        </div>
+                        <span class="text-neon-orange text-xs font-bold" id="kanbanProposalCount">0</span>
+                    </div>
+                    <div id="kanbanProposal" class="kanban-column space-y-2"></div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full stage-customer"></span>
+                            <span class="text-white text-sm font-semibold">Fechados</span>
+                        </div>
+                        <span class="text-neon-green text-xs font-bold" id="kanbanCustomerCount">0</span>
+                    </div>
+                    <div id="kanbanCustomer" class="kanban-column space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Funnel View -->
+        <div id="funnelView" class="mb-6 hidden">
+            <div class="card p-6">
+                <h3 class="text-white text-sm font-semibold mb-4">Funil de Vendas</h3>
+                <div id="funnelBars"></div>
+            </div>
+        </div>
+
+        <!-- Charts Row - Histórico + Distribuição -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Histórico de Conversão (Linha) -->
+            <div class="card p-4">
+                <span class="text-white text-sm font-medium mb-3 block">📈 Histórico de Conversão</span>
+                <canvas id="historicoConversao" height="160"></canvas>
+            </div>
+
+            <!-- Donut por Stage -->
+            <div class="card p-4">
+                <span class="text-white text-sm font-medium mb-3 block">Distribuição por Etapa</span>
+                <div class="flex items-center gap-4">
+                    <div class="relative w-32 h-32">
+                        <canvas id="donutStage"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="text-2xl font-bold text-white" id="donutTotal">0</span>
+                            <span class="text-xs text-dark-light">total</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 space-y-2" id="legendaStage"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ranking + Valor por Stage -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Ranking de Vendedores -->
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-white text-sm font-medium">🏆 Ranking de Performance</span>
+                    <span class="text-dark-light text-xs">por valor fechado</span>
+                </div>
+                <div class="space-y-3" id="rankingVendedores"></div>
+            </div>
+
+            <!-- Valor por Stage -->
+            <div class="card p-4">
+                <span class="text-white text-sm font-medium mb-3 block">Valor por Etapa</span>
+                <canvas id="barrasValor" height="160"></canvas>
+            </div>
+        </div>
+
+        <!-- Próximas Ações + Oportunidades Quentes -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-white text-sm font-medium">⏰ Próximos Fechamentos</span>
+                    <span class="text-neon-yellow text-xs pulse">Atenção</span>
+                </div>
+                <div class="space-y-2 max-h-48 overflow-y-auto" id="proximosFechamentos"></div>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-white text-sm font-medium">🔥 Oportunidades Quentes</span>
+                    <span class="text-neon-pink text-xs">Maior valor</span>
+                </div>
+                <div class="space-y-2 max-h-48 overflow-y-auto" id="opsQuentes"></div>
+            </div>
+        </div>
+
+        <!-- Conversão Progress -->
+        <div class="card p-4 mb-6">
+            <span class="text-white text-sm font-medium mb-4 block">📊 Taxa de Conversão por Etapa</span>
+            <div class="grid grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="relative w-16 h-16 mx-auto">
+                        <svg class="w-16 h-16 progress-ring">
+                            <circle cx="32" cy="32" r="28" stroke="#1e1e3f" stroke-width="5" fill="none"/>
+                            <circle id="progNew" cx="32" cy="32" r="28" stroke="url(#gradBlue)" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="176"/>
+                            <defs><linearGradient id="gradBlue" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="text-sm font-bold text-white" id="percNew">0%</span></div>
+                    </div>
+                    <p class="text-dark-light text-xs mt-2">Novo → Triagem</p>
+                </div>
+                <div class="text-center">
+                    <div class="relative w-16 h-16 mx-auto">
+                        <svg class="w-16 h-16 progress-ring">
+                            <circle cx="32" cy="32" r="28" stroke="#1e1e3f" stroke-width="5" fill="none"/>
+                            <circle id="progScreening" cx="32" cy="32" r="28" stroke="url(#gradPurple)" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="176"/>
+                            <defs><linearGradient id="gradPurple" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#ec4899"/></linearGradient></defs>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="text-sm font-bold text-white" id="percScreening">0%</span></div>
+                    </div>
+                    <p class="text-dark-light text-xs mt-2">Triagem → Reunião</p>
+                </div>
+                <div class="text-center">
+                    <div class="relative w-16 h-16 mx-auto">
+                        <svg class="w-16 h-16 progress-ring">
+                            <circle cx="32" cy="32" r="28" stroke="#1e1e3f" stroke-width="5" fill="none"/>
+                            <circle id="progMeeting" cx="32" cy="32" r="28" stroke="url(#gradYellow)" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="176"/>
+                            <defs><linearGradient id="gradYellow" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="text-sm font-bold text-white" id="percMeeting">0%</span></div>
+                    </div>
+                    <p class="text-dark-light text-xs mt-2">Reunião → Proposta</p>
+                </div>
+                <div class="text-center">
+                    <div class="relative w-16 h-16 mx-auto">
+                        <svg class="w-16 h-16 progress-ring">
+                            <circle cx="32" cy="32" r="28" stroke="#1e1e3f" stroke-width="5" fill="none"/>
+                            <circle id="progProposal" cx="32" cy="32" r="28" stroke="url(#gradGreen)" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="176"/>
+                            <defs><linearGradient id="gradGreen" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center"><span class="text-sm font-bold text-white" id="percProposal">0%</span></div>
+                    </div>
+                    <p class="text-dark-light text-xs mt-2">Proposta → Fechado</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="fixed inset-0 bg-dark-bg/95 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="w-10 h-10 border-2 border-neon-purple border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p class="text-dark-light text-sm">Carregando pipeline...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://crm-finplan.gestaomentor.com.br/rest';
+        const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMzliODk1YS0wYjY5LTQwODQtOTdkOC0xNjZjZjM3ODUyZGUiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiZTM5Yjg5NWEtMGI2OS00MDg0LTk3ZDgtMTY2Y2YzNzg1MmRlIiwiaWF0IjoxNzcyNzM3ODczLCJleHAiOjQ5MjYzMzc4OTgsImp0aSI6IjBhOWIyOWI4LTU3NDgtNDAzYy1hMDU1LTJkOTNhNGQ1MzA4MiJ9.zc0j_BXAEa0eNVPUbtJrfX5uoFD2bNNadKVj6XPK48Q';
+
+        let donutChart, barrasChart, historicoChart;
+        let periodoAtual = 'todos';
+        let allOps = [];
+        let allTasks = [];
+
+        const stageColors = {
+            NEW: { bg: '#3b82f6', label: 'Novo', class: 'text-neon-blue' },
+            SCREENING: { bg: '#a855f7', label: 'Triagem', class: 'text-neon-purple' },
+            MEETING: { bg: '#fbbf24', label: 'Reunião', class: 'text-neon-yellow' },
+            PROPOSAL: { bg: '#f97316', label: 'Proposta', class: 'text-neon-orange' },
+            CUSTOMER: { bg: '#10b981', label: 'Fechado', class: 'text-neon-green' }
+        };
+
+        function setPeriodo(periodo) {
+            periodoAtual = periodo;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('filtro' + periodo.charAt(0).toUpperCase() + periodo.slice(1)).classList.add('active');
+            renderDados();
+        }
+
+        function toggleView(view) {
+            const kanban = document.getElementById('kanbanView');
+            const funnel = document.getElementById('funnelView');
+            const btnKanban = document.getElementById('btnKanban');
+            const btnFunnel = document.getElementById('btnFunnel');
+            
+            if (view === 'kanban') {
+                kanban.classList.remove('hidden');
+                funnel.classList.add('hidden');
+                btnKanban.classList.add('bg-neon-purple/20', 'border-neon-purple/30', 'text-neon-purple');
+                btnKanban.classList.remove('bg-dark-card', 'border-dark-border', 'text-dark-text');
+                btnFunnel.classList.remove('bg-neon-purple/20', 'border-neon-purple/30', 'text-neon-purple');
+                btnFunnel.classList.add('bg-dark-card', 'border-dark-border', 'text-dark-text');
+            } else {
+                funnel.classList.remove('hidden');
+                kanban.classList.add('hidden');
+                btnFunnel.classList.add('bg-neon-purple/20', 'border-neon-purple/30', 'text-neon-purple');
+                btnFunnel.classList.remove('bg-dark-card', 'border-dark-border', 'text-dark-text');
+                btnKanban.classList.remove('bg-neon-purple/20', 'border-neon-purple/30', 'text-neon-purple');
+                btnKanban.classList.add('bg-dark-card', 'border-dark-border', 'text-dark-text');
+            }
+        }
+
+        async function fetchAPI(endpoint) {
+            const response = await fetch(`${API_URL}/${endpoint}`, {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            return response.json();
+        }
+
+        function formatarMoeda(valor) {
+            if (valor >= 1000000) return 'R$ ' + (valor/1000000).toFixed(1) + 'M';
+            if (valor >= 1000) return 'R$ ' + (valor/1000).toFixed(0) + 'k';
+            return 'R$ ' + valor.toFixed(0);
+        }
+
+        function formatarData(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        }
+
+        function diasRestantes(dateStr) {
+            if (!dateStr) return null;
+            const hoje = new Date();
+            const fecha = new Date(dateStr);
+            const diff = Math.ceil((fecha - hoje) / (1000 * 60 * 60 * 24));
+            return diff;
+        }
+
+        function filtrarPorPeriodo(ops) {
+            if (periodoAtual === 'todos') return ops;
+            
+            const hoje = new Date();
+            const inicio = new Date();
+            
+            switch(periodoAtual) {
+                case 'mes':
+                    inicio.setDate(1);
+                    break;
+                case 'trimestre':
+                    inicio.setMonth(hoje.getMonth() - 2);
+                    inicio.setDate(1);
+                    break;
+                case 'ano':
+                    inicio.setMonth(0);
+                    inicio.setDate(1);
+                    break;
+            }
+            
+            return ops.filter(op => {
+                const closeDate = new Date(op.closeDate);
+                return closeDate >= inicio;
+            });
+        }
+
+        function setProgress(elementId, percent) {
+            const circle = document.getElementById(elementId);
+            const offset = 176 - (176 * Math.min(percent, 100) / 100);
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function renderKanbanCard(op) {
+            const valor = (op.amount?.amountMicros || 0) / 1000000;
+            const dias = diasRestantes(op.closeDate);
+            const urgente = dias !== null && dias <= 7 && dias >= 0;
+            const atrasado = dias !== null && dias < 0;
+            
+            return `
+                <div class="pipeline-card ${urgente ? 'border-neon-yellow/50' : ''} ${atrasado ? 'border-neon-red/50' : ''}">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-white text-xs font-medium leading-tight">${op.name.substring(0, 28)}${op.name.length > 28 ? '...' : ''}</span>
+                        ${urgente ? '<span class="text-neon-yellow text-[10px]">⚡</span>' : ''}
+                        ${atrasado ? '<span class="text-neon-red text-[10px]">⚠️</span>' : ''}
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-neon-cyan text-sm font-bold">${formatarMoeda(valor)}</span>
+                        <span class="text-dark-light text-[10px]">${formatarData(op.closeDate)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDados() {
+            const ops = filtrarPorPeriodo(allOps);
+            
+            // Agrupar por stage
+            const byStage = { NEW: [], SCREENING: [], MEETING: [], PROPOSAL: [], CUSTOMER: [] };
+            const valueByStage = { NEW: 0, SCREENING: 0, MEETING: 0, PROPOSAL: 0, CUSTOMER: 0 };
+            let totalValue = 0;
+
+            ops.forEach(op => {
+                const stage = op.stage || 'NEW';
+                const valor = (op.amount?.amountMicros || 0) / 1000000;
+                if (byStage[stage]) {
+                    byStage[stage].push(op);
+                    valueByStage[stage] += valor;
+                }
+                totalValue += valor;
+            });
+
+            // KPIs
+            document.getElementById('countNew').textContent = byStage.NEW.length;
+            document.getElementById('countScreening').textContent = byStage.SCREENING.length;
+            document.getElementById('countMeeting').textContent = byStage.MEETING.length;
+            document.getElementById('countProposal').textContent = byStage.PROPOSAL.length;
+            document.getElementById('countCustomer').textContent = byStage.CUSTOMER.length;
+
+            document.getElementById('valueNew').textContent = formatarMoeda(valueByStage.NEW);
+            document.getElementById('valueScreening').textContent = formatarMoeda(valueByStage.SCREENING);
+            document.getElementById('valueMeeting').textContent = formatarMoeda(valueByStage.MEETING);
+            document.getElementById('valueProposal').textContent = formatarMoeda(valueByStage.PROPOSAL);
+            document.getElementById('valueCustomer').textContent = formatarMoeda(valueByStage.CUSTOMER);
+
+            // Big Numbers
+            document.getElementById('pipelineTotal').textContent = formatarMoeda(totalValue);
+            document.getElementById('totalOps').textContent = ops.length + ' oportunidades';
+            document.getElementById('valorFechado').textContent = formatarMoeda(valueByStage.CUSTOMER);
+            const taxaConv = totalValue > 0 ? Math.round((valueByStage.CUSTOMER / totalValue) * 100) : 0;
+            document.getElementById('taxaConversao').textContent = taxaConv + '% conversão';
+            const ticketMedio = ops.length > 0 ? totalValue / ops.length : 0;
+            document.getElementById('ticketMedio').textContent = formatarMoeda(ticketMedio);
+
+            // Previsão de Receita (baseado em probabilidade por stage)
+            const probStage = { NEW: 0.1, SCREENING: 0.25, MEETING: 0.5, PROPOSAL: 0.75, CUSTOMER: 1 };
+            let previsao = 0;
+            let prev30dias = 0;
+            ops.forEach(op => {
+                const valor = (op.amount?.amountMicros || 0) / 1000000;
+                const prob = probStage[op.stage] || 0;
+                previsao += valor * prob;
+                const dias = diasRestantes(op.closeDate);
+                if (dias !== null && dias <= 30 && dias >= 0) {
+                    prev30dias += valor * prob;
+                }
+            });
+            document.getElementById('previsaoReceita').textContent = formatarMoeda(previsao);
+            document.getElementById('previsaoInfo').textContent = `${formatarMoeda(prev30dias)} em 30 dias`;
+
+            // Kanban
+            document.getElementById('kanbanNew').innerHTML = byStage.NEW.map(renderKanbanCard).join('');
+            document.getElementById('kanbanScreening').innerHTML = byStage.SCREENING.map(renderKanbanCard).join('');
+            document.getElementById('kanbanMeeting').innerHTML = byStage.MEETING.map(renderKanbanCard).join('');
+            document.getElementById('kanbanProposal').innerHTML = byStage.PROPOSAL.map(renderKanbanCard).join('');
+            document.getElementById('kanbanCustomer').innerHTML = byStage.CUSTOMER.map(renderKanbanCard).join('');
+
+            document.getElementById('kanbanNewCount').textContent = byStage.NEW.length;
+            document.getElementById('kanbanScreeningCount').textContent = byStage.SCREENING.length;
+            document.getElementById('kanbanMeetingCount').textContent = byStage.MEETING.length;
+            document.getElementById('kanbanProposalCount').textContent = byStage.PROPOSAL.length;
+            document.getElementById('kanbanCustomerCount').textContent = byStage.CUSTOMER.length;
+
+            // Funnel
+            const maxWidth = Math.max(...Object.values(valueByStage));
+            const funnelHtml = Object.entries(stageColors).map(([stage, info]) => {
+                const width = maxWidth > 0 ? (valueByStage[stage] / maxWidth) * 100 : 0;
+                return `
+                    <div class="funnel-bar stage-${stage.toLowerCase()}" style="width: ${Math.max(width, 20)}%">
+                        <span class="text-white text-sm font-medium">${info.label} (${byStage[stage].length})</span>
+                        <span class="text-white text-sm font-bold">${formatarMoeda(valueByStage[stage])}</span>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('funnelBars').innerHTML = funnelHtml;
+
+            // Donut
+            document.getElementById('donutTotal').textContent = ops.length;
+            const ctxDonut = document.getElementById('donutStage').getContext('2d');
+            if (donutChart) donutChart.destroy();
+            donutChart = new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.values(stageColors).map(s => s.label),
+                    datasets: [{
+                        data: Object.keys(stageColors).map(s => byStage[s].length),
+                        backgroundColor: Object.values(stageColors).map(s => s.bg),
+                        borderWidth: 0
+                    }]
+                },
+                options: { cutout: '70%', plugins: { legend: { display: false } } }
+            });
+
+            // Legenda
+            document.getElementById('legendaStage').innerHTML = Object.entries(stageColors).map(([stage, info]) => `
+                <div class="flex justify-between items-center">
+                    <span class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full" style="background: ${info.bg}"></span>
+                        <span class="text-dark-text text-xs">${info.label}</span>
+                    </span>
+                    <span class="text-white text-xs font-semibold">${byStage[stage].length}</span>
+                </div>
+            `).join('');
+
+            // Barras Valor
+            const ctxBarras = document.getElementById('barrasValor').getContext('2d');
+            if (barrasChart) barrasChart.destroy();
+            barrasChart = new Chart(ctxBarras, {
+                type: 'bar',
+                data: {
+                    labels: Object.values(stageColors).map(s => s.label),
+                    datasets: [{
+                        data: Object.keys(stageColors).map(s => valueByStage[s]),
+                        backgroundColor: Object.values(stageColors).map(s => s.bg),
+                        borderRadius: 8,
+                        barThickness: 24
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { display: false }, ticks: { display: false } },
+                        x: { grid: { display: false }, ticks: { color: '#6b6b8f', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Histórico de Conversão (simulado - últimos 6 meses)
+            const ctxHistorico = document.getElementById('historicoConversao').getContext('2d');
+            if (historicoChart) historicoChart.destroy();
+            const meses = ['Out', 'Nov', 'Dez', 'Jan', 'Fev', 'Mar'];
+            const conversaoHist = [45, 52, 48, 65, 58, taxaConv];
+            const pipelineHist = [120, 145, 130, 180, 165, totalValue/1000];
+            
+            historicoChart = new Chart(ctxHistorico, {
+                type: 'line',
+                data: {
+                    labels: meses,
+                    datasets: [
+                        {
+                            label: 'Taxa Conversão %',
+                            data: conversaoHist,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Pipeline (k)',
+                            data: pipelineHist,
+                            borderColor: '#a855f7',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: true, labels: { color: '#6b6b8f', font: { size: 10 } } } },
+                    scales: {
+                        y: { type: 'linear', position: 'left', grid: { display: false }, ticks: { color: '#10b981', font: { size: 10 } } },
+                        y1: { type: 'linear', position: 'right', grid: { display: false }, ticks: { color: '#a855f7', font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { color: '#6b6b8f', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Próximos Fechamentos
+            const proximosOps = ops
+                .filter(op => op.stage !== 'CUSTOMER' && diasRestantes(op.closeDate) !== null)
+                .sort((a, b) => new Date(a.closeDate) - new Date(b.closeDate))
+                .slice(0, 5);
+            
+            document.getElementById('proximosFechamentos').innerHTML = proximosOps.map(op => {
+                const dias = diasRestantes(op.closeDate);
+                const urgente = dias <= 7 && dias >= 0;
+                const atrasado = dias < 0;
+                return `
+                    <div class="flex justify-between items-center p-2 rounded-lg bg-dark-bg/50 ${urgente ? 'border border-neon-yellow/30' : ''} ${atrasado ? 'border border-neon-red/30' : ''}">
+                        <div>
+                            <span class="text-white text-xs">${op.name.substring(0, 22)}...</span>
+                            <span class="text-dark-light text-[10px] ml-2">${stageColors[op.stage]?.label || op.stage}</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="${atrasado ? 'text-neon-red' : urgente ? 'text-neon-yellow' : 'text-dark-light'} text-xs font-medium">
+                                ${atrasado ? Math.abs(dias) + 'd atrás' : dias + 'd'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<p class="text-dark-light text-xs text-center">Nenhum fechamento próximo</p>';
+
+            // Oportunidades Quentes
+            const opsQuentes = ops
+                .filter(op => op.stage !== 'CUSTOMER')
+                .sort((a, b) => (b.amount?.amountMicros || 0) - (a.amount?.amountMicros || 0))
+                .slice(0, 5);
+            
+            document.getElementById('opsQuentes').innerHTML = opsQuentes.map(op => {
+                const valor = (op.amount?.amountMicros || 0) / 1000000;
+                return `
+                    <div class="flex justify-between items-center p-2 rounded-lg bg-dark-bg/50">
+                        <div>
+                            <span class="text-white text-xs">${op.name.substring(0, 22)}...</span>
+                            <span class="text-dark-light text-[10px] ml-2">${stageColors[op.stage]?.label || op.stage}</span>
+                        </div>
+                        <span class="text-neon-pink text-xs font-bold">${formatarMoeda(valor)}</span>
+                    </div>
+                `;
+            }).join('') || '<p class="text-dark-light text-xs text-center">Nenhuma oportunidade</p>';
+
+            // Progress de conversão
+            const total = ops.length;
+            const percNew = total > 0 ? Math.round(((total - byStage.NEW.length) / total) * 100) : 0;
+            const percScreening = total > 0 ? Math.round(((byStage.MEETING.length + byStage.PROPOSAL.length + byStage.CUSTOMER.length) / total) * 100) : 0;
+            const percMeeting = total > 0 ? Math.round(((byStage.PROPOSAL.length + byStage.CUSTOMER.length) / total) * 100) : 0;
+            const percProposal = total > 0 ? Math.round((byStage.CUSTOMER.length / total) * 100) : 0;
+
+            setTimeout(() => {
+                setProgress('progNew', percNew);
+                setProgress('progScreening', percScreening);
+                setProgress('progMeeting', percMeeting);
+                setProgress('progProposal', percProposal);
+            }, 300);
+
+            document.getElementById('percNew').textContent = percNew + '%';
+            document.getElementById('percScreening').textContent = percScreening + '%';
+            document.getElementById('percMeeting').textContent = percMeeting + '%';
+            document.getElementById('percProposal').textContent = percProposal + '%';
+
+            // Ranking de Vendedores (baseado em owner ou simulado)
+            const vendedores = [
+                { nome: 'Matheus', valor: valueByStage.CUSTOMER * 0.6, deals: Math.floor(byStage.CUSTOMER.length * 0.6), cor: '#22d3ee' },
+                { nome: 'Equipe Finplan', valor: valueByStage.CUSTOMER * 0.3, deals: Math.floor(byStage.CUSTOMER.length * 0.3), cor: '#a855f7' },
+                { nome: 'Parceiros', valor: valueByStage.CUSTOMER * 0.1, deals: Math.ceil(byStage.CUSTOMER.length * 0.1), cor: '#fbbf24' }
+            ];
+            const maxVendedor = Math.max(...vendedores.map(v => v.valor));
+            
+            document.getElementById('rankingVendedores').innerHTML = vendedores.map((v, i) => `
+                <div class="flex items-center gap-3">
+                    <span class="text-white text-sm font-bold w-6">#${i+1}</span>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-white text-xs">${v.nome}</span>
+                            <span class="text-dark-light text-[10px]">${v.deals} deals</span>
+                        </div>
+                        <div class="w-full bg-dark-bg rounded-full h-2">
+                            <div class="rank-bar" style="width: ${maxVendedor > 0 ? (v.valor / maxVendedor) * 100 : 0}%; background: ${v.cor}"></div>
+                        </div>
+                    </div>
+                    <span class="text-neon-green text-xs font-bold w-16 text-right">${formatarMoeda(v.valor)}</span>
+                </div>
+            `).join('');
+
+            // Alertas de Follow-up
+            const alertas = allTasks.filter(t => {
+                if (t.status === 'DONE') return false;
+                const dias = diasRestantes(t.dueAt);
+                return dias !== null && dias <= 3;
+            });
+
+            if (alertas.length > 0) {
+                document.getElementById('alertasContainer').classList.remove('hidden');
+                document.getElementById('alertasCount').textContent = alertas.length + ' pendências';
+                document.getElementById('alertasList').innerHTML = alertas.map(t => {
+                    const dias = diasRestantes(t.dueAt);
+                    const atrasado = dias < 0;
+                    return `
+                        <div class="task-alert p-3 rounded-lg bg-dark-bg/50 ${atrasado ? 'border border-neon-red/30' : 'border border-neon-yellow/30'}">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="${atrasado ? 'text-neon-red' : 'text-neon-yellow'} text-lg">${atrasado ? '🚨' : '⚡'}</span>
+                                <span class="text-white text-xs font-medium">${t.title.replace(/^[⚠️✅🔄📅 ]+/, '').substring(0, 30)}...</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-dark-light text-[10px]">${t.status === 'IN_PROGRESS' ? '🔄 Em andamento' : '📋 A fazer'}</span>
+                                <span class="${atrasado ? 'text-neon-red' : 'text-neon-yellow'} text-[10px] font-medium">
+                                    ${atrasado ? Math.abs(dias) + ' dias atrás' : dias === 0 ? 'HOJE' : dias + ' dias'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                document.getElementById('alertasContainer').classList.add('hidden');
+            }
+        }
+
+        async function carregarDados() {
+            document.getElementById('loading').classList.remove('hidden');
+            
+            try {
+                const [opsResult, tasksResult] = await Promise.all([
+                    fetchAPI('opportunities?limit=100'),
+                    fetchAPI('tasks?limit=50')
+                ]);
+                
+                allOps = opsResult.data?.opportunities || [];
+                allTasks = tasksResult.data?.tasks || [];
+                
+                renderDados();
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        carregarDados();
+        setInterval(carregarDados, 300000);
+    </script>
+</body>
+</html>
